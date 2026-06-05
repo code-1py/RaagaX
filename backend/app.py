@@ -1,22 +1,10 @@
-from .logger import logger
+from backend.logger import logger
 from fastapi import FastAPI, Request  , HTTPException
 from fastapi.responses import HTMLResponse , RedirectResponse , JSONResponse , FileResponse
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-import sys
-from .settings import get_user_customization, set_update_user_customization
+from backend.settings import get_user_customization, set_update_user_customization
 import traceback
-
-def get_base_dir():
-    if getattr(sys, "frozen", False):
-        # running as exe
-        return Path(sys.executable).parent
-
-    # running from source
-    return Path(__file__).resolve().parent.parent
-
-
-BASE_DIR = get_base_dir()
+from backend.utils import BASE_DIR
 
 STATIC_DIR = BASE_DIR / "assets" / "static" # Static Files Mount Path
 

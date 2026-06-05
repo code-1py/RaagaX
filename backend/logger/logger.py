@@ -1,22 +1,7 @@
-from pathlib import Path
 from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
-
+from backend.utils import BASE_DIR
 import logging
-import sys
-
-
-# ============================================================
-# Base Directory
-# ============================================================
-
-if getattr(sys, "frozen", False):
-    # Running as packaged executable
-    BASE_DIR = Path(sys.executable).resolve().parent
-else:
-    # Running from source
-    BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 # ================#
 # Logs Directory  #

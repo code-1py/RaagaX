@@ -1,8 +1,9 @@
 import json
+from backend.utils import BASE_DIR
 
 def get_user_customization() -> str:
     try:
-        with open('settings.json', 'r') as f:
+        with open(BASE_DIR / "settings.json", "r") as f:
             settings: dict = json.load(f)
             return settings.get("theme", "light")
     except Exception as e:
@@ -10,8 +11,10 @@ def get_user_customization() -> str:
 
 def set_update_user_customization(theme: str) -> None:
     try:
-        with open('settings.json','w') as f:
+        with open(BASE_DIR / "settings.json", "w") as f:
             settings: dict = {"theme": theme}
             json.dump(settings, f)
     except Exception as e:
         pass
+
+set_update_user_customization("dark")
