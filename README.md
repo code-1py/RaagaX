@@ -10,9 +10,7 @@ A modern, self-contained music and video player built as a desktop application. 
 - Queue management with drag and drop reordering
 - Playlist support — paste a playlist link and all tracks load automatically
 - Seek bar, volume control, loop, skip, and keyboard shortcuts
-- Queue persists across restarts
 - Light and dark theme, saved automatically
-- Fully offline after launch — no browser needed
 
 ---
 
@@ -35,7 +33,7 @@ A modern, self-contained music and video player built as a desktop application. 
 
 ### To run from source
 - Python 3.11 or higher
-- Windows 10/11, macOS 10.14+, or Linux with `libwebkit2gtk`
+- Windows 10/11 or Linux with `libwebkit2gtk`
 
 ### To run the built application
 - **Windows** — Windows 10 or 11 (Edge WebView2 is built in, nothing else needed)
@@ -56,7 +54,7 @@ python -m venv venv
 # Windows
 venv\Scripts\activate
 
-# Mac / Linux
+# Linux
 source venv/bin/activate
 
 # 3. Install dependencies
