@@ -13,3 +13,4 @@ project_details
 secret_generator.py
 
 admin_creds.txt
+backend/settings/settings.json

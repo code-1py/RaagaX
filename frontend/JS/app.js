@@ -88,7 +88,6 @@ async function init() {
       applyTheme(data.display_mode || 'light', false);
     } else {
       applyTheme('light', false);
-      showServerBanner();
     }
   } catch {
     // Network failure — server is not reachable at all
