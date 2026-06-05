@@ -21,3 +21,5 @@ dist/
 *.spec.bak
 
 progress_log.txt
+
+packages
