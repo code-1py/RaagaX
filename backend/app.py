@@ -27,3 +27,18 @@ async def user_customization(request: Request):
     except Exception as e:
         logger.error(f"Error fetching user customization: {traceback.format_exc()}")
         return JSONResponse(content={"error": "Failed to fetch user customization"}, status_code=500)
+    
+@app.post("/user_customization_update",response_class=JSONResponse)
+async def user_customization_update(request:Request):
+    try:
+        data = await request.json()
+        theme = data.get("display_mode")
+        if theme not in ["light", "dark"]:
+            raise HTTPException(status_code=400, detail="Invalid theme value")
+        set_update_user_customization(theme)
+        return JSONResponse({"success": True})
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error updating user customization: {traceback.format_exc()}")
+        return JSONResponse(content={"error": "Failed to update user customization"}, status_code=500)
