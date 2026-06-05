@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RaagaX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/frontend/CSS/style.css" />
+</head>
+<body>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<!-- Server Unavailable Banner -->
+<div id="server-banner" class="server-banner hidden">
+  <span>⚠ Server unreachable — some features may not work please restart the application or contact developers</span>
+  <button onclick="document.getElementById('server-banner').classList.add('hidden')">✕</button>
+</div>
+
+<!-- App Shell -->
+<div class="app">
+
+  <!-- Sidebar / Queue -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Queue</span>
+      <span class="queue-count" id="queue-count">0 songs</span>
+    </div>
+
+    <div class="add-song-area">
+      <input type="text" id="link-input" class="link-input" placeholder="Paste link/name to add song…" />
+      <button class="add-btn" id="add-btn" onclick="addSong()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add
+      </button>
+    </div>
+
+    <ul class="queue-list" id="queue-list">
+      <!-- Queue items injected here -->
+      <li class="queue-empty" id="queue-empty">
+        <div class="queue-empty-icon">♫</div>
+        <p>No songs yet.<br/>Paste a link above.</p>
+      </li>
+    </ul>
+  </aside>
+
+  <!-- Main Player -->
+  <main class="player-area">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo">
+        <span class="logo-icon">◈</span>
+        <span class="logo-text">RaagaX</span>
+      </div>
+      <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <span class="theme-icon" id="theme-icon">☽</span>
+      </button>
+    </header>
+
+    <!-- Media Display -->
+    <div class="media-stage" id="media-stage">
+      <!-- Idle state -->
+      <div class="idle-screen" id="idle-screen">
+        <div class="idle-visual">
+          <div class="idle-rings">
+            <div class="ring ring-1"></div>
+            <div class="ring ring-2"></div>
+            <div class="ring ring-3"></div>
+          </div>
+          <div class="idle-note">♫</div>
+        </div>
+        <p class="idle-text">Add a song to get started</p>
+      </div>
+
+      <!-- Loading state -->
+      <div class="loading-screen hidden" id="loading-screen">
+        <div class="loader-wave">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <p class="loading-text">Fetching track…</p>
+      </div>
+
+      <!-- Video player -->
+      <video id="video-player" class="video-player hidden" playsinline></video>
+
+      <!-- Audio thumbnail display -->
+      <div class="audio-display hidden" id="audio-display">
+        <div class="thumbnail-wrap">
+          <img id="audio-thumbnail" class="audio-thumbnail" src="" alt="Thumbnail" />
+          <div class="thumbnail-overlay" id="thumb-overlay">
+            <div class="pulse-ring"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Song Info -->
+    <div class="song-info" id="song-info">
+      <div class="song-title" id="song-title">—</div>
+      <div class="song-meta" id="song-meta"></div>
+    </div>
+
+    <!-- Seek Bar -->
+    <div class="seek-area">
+      <span class="time-label" id="time-current">0:00</span>
+      <div class="seek-bar-wrap" id="seek-bar-wrap">
+        <div class="seek-bar-bg">
+          <div class="seek-bar-fill" id="seek-fill"></div>
+          <div class="seek-bar-thumb" id="seek-thumb"></div>
+        </div>
+      </div>
+      <span class="time-label" id="time-total">0:00</span>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <button class="ctrl-btn ctrl-sm" id="loop-btn" onclick="toggleLoop()" title="Loop">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      </button>
+      <button class="ctrl-btn ctrl-md" onclick="seekRelative(-10)" title="Rewind 10s">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5"/><path d="M18 17l-5-5 5-5"/></svg>
+      </button>
+      <button class="ctrl-btn ctrl-md" onclick="prevSong()" title="Previous">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+      </button>
+      <button class="ctrl-btn ctrl-lg play-pause-btn" id="play-pause-btn" onclick="togglePlayPause()" title="Play/Pause">
+        <svg class="icon-play" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <svg class="icon-pause hidden" width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <button class="ctrl-btn ctrl-md" onclick="nextSong()" title="Next">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+      </button>
+      <button class="ctrl-btn ctrl-md" onclick="seekRelative(10)" title="Forward 10s">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5"/><path d="M6 17l5-5-5-5"/></svg>
+      </button>
+
+      <div class="volume-area">
+        <button class="ctrl-btn ctrl-sm" onclick="toggleMute()" id="mute-btn" title="Mute">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="vol-icon">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          </svg>
+        </button>
+        <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="80" oninput="setVolume(this.value)" />
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="/frontend/JS/app.js"></script>
+</body>
+</html>
