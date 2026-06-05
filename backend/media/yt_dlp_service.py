@@ -1,5 +1,5 @@
 from yt_dlp import YoutubeDL
-from logger import logger
+from backend.logger import logger
 from yt_dlp.utils import DownloadError , ExtractorError , GeoRestrictedError , UnavailableVideoError , UserNotLive
 from urllib.error import URLError
 from http.client import RemoteDisconnected

@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from backend.settings import get_user_customization, set_update_user_customization
 import traceback
 from backend.utils import BASE_DIR
+from backend.media import get_playlist_info, get_songs_info
 
 STATIC_DIR = BASE_DIR / "assets" / "static" # Static Files Mount Path
 
@@ -34,11 +35,47 @@ async def user_customization_update(request:Request):
         data = await request.json()
         theme = data.get("display_mode")
         if theme not in ["light", "dark"]:
-            raise HTTPException(status_code=400, detail="Invalid theme value")
+            return JSONResponse(content={"error": "Invalid theme value"}, status_code=400)
         set_update_user_customization(theme)
         return JSONResponse({"success": True})
-    except HTTPException as he:
-        raise he
+    
     except Exception as e:
         logger.error(f"Error updating user customization: {traceback.format_exc()}")
         return JSONResponse(content={"error": "Failed to update user customization"}, status_code=500)
+    
+@app.post("/get-song", response_class=JSONResponse)
+async def get_song(request: Request):
+    try:
+        data: dict = await request.json()
+        link = data.get("link")
+        if not link:
+            return JSONResponse(content={"error": "Missing 'link' parameter"}, status_code=400)
+
+        playlist_info:dict = get_playlist_info(link)
+        if playlist_info.get("is_playlist"):
+            song_count = playlist_info.get("count", 0)
+            if song_count > 50:
+                return JSONResponse(content={"error": "Playlist too large. Maximum allowed is 50 songs."}, status_code=400)
+        
+        success , songs_info = get_songs_info(link)
+        if not success:
+            return JSONResponse(content={"error": songs_info}, status_code=400)
+        
+        if len(songs_info) == 0:
+            return JSONResponse(content={"error": "No songs found at the provided link"}, status_code=404)
+        
+        response = {
+            "multiple_song": playlist_info.get("is_playlist", False),
+            "song": songs_info
+        }
+        if songs_info and len(songs_info) == 1:
+            response["song"] = songs_info[0]  # Return single song as an object instead of a list
+            
+        logger.info(response)
+
+        return JSONResponse(content=response)
+
+    except Exception as e:
+        logger.error(f"Error fetching song: {traceback.format_exc()}")
+        traceback.print_exc()
+        return JSONResponse(content={"error": "Failed to fetch song"}, status_code=500)
