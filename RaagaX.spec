@@ -64,6 +64,15 @@ hidden_imports = [
     "anyio",
     "anyio._backends._asyncio",
     "anyio._backends._trio",
+    # backend app direct import
+    "backend.app",
+    "backend.logger",
+    "backend.media",
+    "backend.settings",
+    "backend.utils",
+    # pythonnet for pywebview on Windows
+    "clr",
+    "pythonnet",
     # encoding
     "encodings",
     "encodings.utf_8",

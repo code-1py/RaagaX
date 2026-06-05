@@ -29,16 +29,22 @@ server: uvicorn.Server | None = None
 
 def start_server() -> None:
     global server
-    config = uvicorn.Config(
-        app="backend.app:app",
-        host=HOST,
-        port=PORT,
-        log_level="error",
-        access_log=False,
-    )
-    server = uvicorn.Server(config)
-    logger.info(f"Starting uvicorn on {URL}")
-    server.run()
+    try:
+        # Import the app object directly — works in both frozen and dev mode
+        from backend.app import app as fastapi_app
+
+        config = uvicorn.Config(
+            app=fastapi_app,        # pass object, not string — safe in frozen exe
+            host=HOST,
+            port=PORT,
+            log_level="info",       # temporarily info so errors show in log
+            access_log=False,
+        )
+        server = uvicorn.Server(config)
+        logger.info(f"Starting uvicorn on {URL}")
+        server.run()
+    except Exception as e:
+        logger.error(f"Uvicorn failed to start: {e}", exc_info=True)
 
 
 def stop_server() -> None:
@@ -70,7 +76,6 @@ def wait_for_server(timeout: int = 20) -> bool:
 def check_linux_webkit() -> bool:
     try:
         import ctypes
-        # Try 4.1 first (newer distros), then 4.0 (older)
         for lib in ("libwebkit2gtk-4.1.so.0", "libwebkit2gtk-4.0.so.37"):
             try:
                 ctypes.CDLL(lib)
@@ -97,8 +102,6 @@ def on_closed() -> None:
 # ============================================================
 
 def launch_window() -> None:
-    # private_mode breaks localStorage on Mac (WKWebView) and some Linux builds
-    # Only enable on Windows where it works correctly
     use_private = OS == "Windows"
 
     window = webview.create_window(
@@ -127,7 +130,6 @@ def launch_window() -> None:
 
 if __name__ == "__main__":
 
-    # Linux — warn early if WebKit is missing
     if OS == "Linux" and not check_linux_webkit():
         print(
             "ERROR: libwebkit2gtk not found.\n"
@@ -139,7 +141,6 @@ if __name__ == "__main__":
         logger.error("libwebkit2gtk not found — cannot launch UI")
         sys.exit(1)
 
-    # Start uvicorn in background daemon thread
     server_thread = threading.Thread(target=start_server, daemon=True)
     server_thread.start()
 
@@ -147,7 +148,7 @@ if __name__ == "__main__":
     ready = wait_for_server(timeout=20)
 
     if not ready:
-        logger.error("Server failed to start within timeout — exiting")
+        logger.error("Server failed to start within timeout — check logs above for the real error")
         stop_server()
         sys.exit(1)
 
