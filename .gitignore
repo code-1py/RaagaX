@@ -19,3 +19,5 @@ settings.json
 build/
 dist/
 *.spec.bak
+
+progress_log.txt
