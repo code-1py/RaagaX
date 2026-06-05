@@ -4,19 +4,34 @@ from yt_dlp.utils import DownloadError , ExtractorError , GeoRestrictedError , U
 from urllib.error import URLError
 from http.client import RemoteDisconnected
 import traceback
+from urllib.parse import urlparse
 
-def get_playlist_info(url)-> dict:
+def normalize_input(text: str) -> str:
+    try:
+        parsed = urlparse(text)
+
+        if parsed.scheme and parsed.netloc:
+            return text
+
+        return f"ytsearch1:{text}"
+
+    except Exception:
+        return f"ytsearch1:{text}"
+
+def get_playlist_info(query: str) -> dict:
     ydl_opts = {
         "quiet": True,
         "extract_flat": True,
     }
 
     with YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+        query = normalize_input(query)
+        info = ydl.extract_info(query, download=False)
 
-        entries = info.get("entries") # Check if it's a playlist
+        entries = info.get("entries")
 
-        if entries:
+        # Real playlist has multiple entries
+        if info.get("_type") == "playlist" and len(entries) > 1:
             return {
                 "is_playlist": True,
                 "count": len(entries),
@@ -37,7 +52,8 @@ def get_songs_info(url)-> dict[bool, str | list[dict[str, str | bool]]]:
         }
 
         with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            query = normalize_input(url)
+            info = ydl.extract_info(query, download=False)
      
             entries = info.get("entries", [info])  # playlist = multiple, single = wrap in list
      

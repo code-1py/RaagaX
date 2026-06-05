@@ -71,7 +71,6 @@ async def get_song(request: Request):
         if songs_info and len(songs_info) == 1:
             response["song"] = songs_info[0]  # Return single song as an object instead of a list
             
-        logger.info(response)
 
         return JSONResponse(content=response)
 

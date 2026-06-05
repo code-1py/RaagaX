@@ -2,7 +2,7 @@
    RaagaX — app.js
    ============================================================ */
 
-const API_BASE = ''; // For future if Frontend launched seprately from backend
+const API_BASE = ''; // set to 'http://IP:PORT' or 'https://URL' if backend is separate in future
 
 /* ---- State ---- */
 let queue        = [];   // array of song objects
@@ -57,17 +57,40 @@ function loadQueueFromStorage() {
       queue = JSON.parse(saved);
       currentIndex = savedIdx !== null ? parseInt(savedIdx, 10) : -1;
       renderQueue();
-      // Restore song info display without auto-playing
+      // Restore song info and load src — but don't auto-play
       if (currentIndex >= 0 && currentIndex < queue.length) {
         const song = queue[currentIndex];
         songTitleEl.textContent = song.title || 'Unknown';
-        songMetaEl.textContent  = song.has_video ? '▶ Video' : '♫ Audio';
-        if (!song.has_video && song.thumbnail) {
-          audioThumb.src = song.thumbnail;
-          showStage('audio');
-        } else {
+        songMetaEl.textContent  = '';
+
+        const media = getMedia();
+        media.src    = song.url;
+        media.volume = volSlider.value / 100;
+        media.preload = 'metadata';
+
+        media.onloadedmetadata = () => {
+          if (song.has_video) {
+            showStage('video');
+          } else {
+            audioThumb.src = song.thumbnail || '';
+            showStage('audio');
+          }
+          // Don't play — just ready for user to hit play
+          media.onloadedmetadata = null;
+        };
+
+        media.onerror = () => {
+          // CDN link expired — remove from queue silently
+          queue.splice(currentIndex, 1);
+          currentIndex = -1;
+          renderQueue();
+          saveQueueToStorage();
           showStage('idle');
-        }
+          songTitleEl.textContent = '—';
+          songMetaEl.textContent  = '';
+          showToast('Last played track expired — re-add it', 'error');
+          media.onerror = null;
+        };
       }
     }
   } catch {}
@@ -88,6 +111,7 @@ async function init() {
       applyTheme(data.display_mode || 'light', false);
     } else {
       applyTheme('light', false);
+      showServerBanner();
     }
   } catch {
     // Network failure — server is not reachable at all
@@ -97,6 +121,7 @@ async function init() {
 }
 
 init();
+updateVolSliderTrack(volSlider.value);
 
 /* ================================================================
    THEME
@@ -106,6 +131,8 @@ function applyTheme(mode, save = true) {
   document.documentElement.setAttribute('data-theme', mode);
   themeIcon.textContent = mode === 'dark' ? '☀' : '☽';
   if (save) saveTheme(mode);
+  // Refresh volume track color after theme vars update
+  setTimeout(() => updateVolSliderTrack(volSlider.value), 50);
 }
 
 function toggleTheme() {
@@ -250,6 +277,7 @@ function clearPlayer() {
   songTitleEl.textContent = '—';
   songMetaEl.textContent  = '';
   seekFill.style.width    = '0%';
+  seekThumb.style.left    = '0%';
   timeCurrent.textContent = '0:00';
   timeTotal.textContent   = '0:00';
 }
@@ -269,7 +297,7 @@ function playSong(idx) {
 
   showStage('loading');
   songTitleEl.textContent = song.title;
-  songMetaEl.textContent  = song.has_video ? '▶ Video' : '♫ Audio';
+  songMetaEl.textContent  = '';
 
   const media = getMedia();
   // Remove old listeners before assigning new ones
@@ -387,6 +415,7 @@ getMedia().addEventListener('timeupdate', () => {
   const media = getMedia();
   const pct = media.duration ? (media.currentTime / media.duration) * 100 : 0;
   seekFill.style.width    = pct + '%';
+  seekThumb.style.left    = pct + '%';
   timeCurrent.textContent = formatTime(media.currentTime);
   timeTotal.textContent   = formatTime(media.duration || 0);
 });
@@ -405,6 +434,7 @@ function seek(e) {
   const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
   media.currentTime    = pct * media.duration;
   seekFill.style.width = (pct * 100) + '%';
+  seekThumb.style.left  = (pct * 100) + '%';
 }
 
 /* ================================================================
@@ -414,6 +444,16 @@ function setVolume(val) {
   getMedia().volume = val / 100;
   isMuted = (val == 0);
   updateVolIcon(val);
+  updateVolSliderTrack(val);
+}
+
+function updateVolSliderTrack(val) {
+  const pct = val + '%';
+  // Read computed CSS variables so theme changes are respected
+  const style = getComputedStyle(document.documentElement);
+  const accent = style.getPropertyValue('--accent').trim() || '#4f82e8';
+  const track  = style.getPropertyValue('--seek-track').trim() || 'rgba(130,160,220,0.30)';
+  volSlider.style.background = `linear-gradient(to right, ${accent} 0%, ${accent} ${pct}, ${track} ${pct}, ${track} 100%)`;
 }
 
 function toggleMute() {
