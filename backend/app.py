@@ -7,8 +7,6 @@ import traceback
 from backend.utils import BASE_DIR
 from backend.media import get_playlist_info, get_songs_info
 
-STATIC_DIR = BASE_DIR / "assets" / "static" # Static Files Mount Path
-
 app = FastAPI()
 
 FRONTEND_DIR = BASE_DIR / "frontend"
