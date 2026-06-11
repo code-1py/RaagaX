@@ -77,4 +77,18 @@ class DiscordRPC:
             logger.warning(f"[RPC] Failed to update presence: {traceback.format_exc()}")
             self.connected = False
         
-    
+    async def _clear(self) -> None:
+        try:
+            await self.rpc.clear()
+            logger.info("[RPC] Cleared presence")
+        except Exception:
+            pass
+
+    async def _disconnect(self) -> None:
+        await self._clear()
+        try:
+            await self.rpc.close()
+        except Exception:
+            pass
+        self._loop.call_soon_threadsafe(self._loop.stop)
+        logger.info("[RPC] Disconnected")
