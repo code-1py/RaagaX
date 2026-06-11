@@ -634,3 +634,32 @@ function escHtml(str) {
     .replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;');
 }
+
+/* ================================================================
+   DISCORD RPC
+   ================================================================ */
+function rpcUpdate(paused = false) {
+  const song = queue[currentIndex];
+  if (!song) return;
+
+  const media   = getMedia();
+  const duration = Math.floor(media.duration || 0);
+  const position = Math.floor(media.currentTime || 0);
+
+  fetch(`${API_BASE}/rpc/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title:         song.title     || 'Unknown',
+      artist:        null,           // RaagaX doesn't have artist metadata currently
+      thumbnail_url: song.thumbnail || null,
+      duration:      duration,
+      position:      position,
+      paused:        paused
+    })
+  }).catch(() => {}); // fire and forget never block playback on error
+}
+
+function rpcClear() {
+  fetch(`${API_BASE}/rpc/clear`, { method: 'POST' }).catch(() => {});
+}
