@@ -5,6 +5,7 @@ from pypresence import AioPresence, DiscordNotFound , ActivityType
 import aiohttp
 from backend.logger import logger
 import traceback
+from backend.utils import clean_title
 
 
 #---------Config----------#
@@ -59,7 +60,9 @@ class DiscordRPC:
 
             now = int(time.time())
             start = now - position if (duration and not paused) else None
-            end   = start + duration if (duration and not paused) else None     
+            end   = start + duration if (duration and not paused) else None
+            
+            title = clean_title(title)
 
             await self.rpc.update(
                 activity_type=ActivityType.LISTENING,
