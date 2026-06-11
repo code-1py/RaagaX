@@ -92,3 +92,5 @@ class DiscordRPC:
             pass
         self._loop.call_soon_threadsafe(self._loop.stop)
         logger.info("[RPC] Disconnected")
+
+rpc = DiscordRPC()
