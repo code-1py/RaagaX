@@ -23,6 +23,8 @@ app.mount("/css",StaticFiles(directory=str(FRONTEND_DIR / "css")),name="css") # 
 app.mount("/js",StaticFiles(directory=str(FRONTEND_DIR / "js")),name="js") # JS Files Mount
 
 
+# main route to serve the frontend
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     return FileResponse(FRONTEND_DIR / "index.html")
@@ -85,3 +87,33 @@ async def get_song(request: Request):
         logger.error(f"Error fetching song: {traceback.format_exc()}")
         traceback.print_exc()
         return JSONResponse(content={"error": "Failed to fetch song"}, status_code=500)
+    
+
+# Discord RPC Handling routes
+
+@app.post("/rpc/update", response_class=JSONResponse)
+async def rpc_update(request: Request):
+    try:
+        data = await request.json()
+        title = data.get("title")
+        artist = data.get("artist")
+        thumbnail_url = data.get("thumbnail_url")
+        duration = data.get("duration")
+        position = data.get("position", 0)
+        paused = data.get("paused", False)
+ 
+        if not title:
+            return JSONResponse(content={"error": "Missing 'title'"}, status_code=400)
+ 
+        rpc.update(
+            title=title,
+            artist=artist,
+            thumbnail_url=thumbnail_url,
+            duration=duration,
+            position=position,
+            paused=paused,
+        )
+        return JSONResponse({"success": True})
+    except Exception as e:
+        logger.error(f"[RPC] /rpc/update error: {traceback.format_exc()}")
+        return JSONResponse(content={"error": "Failed to update RPC"}, status_code=500)
