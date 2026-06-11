@@ -18,7 +18,7 @@ class DiscordRPC:
     def __init__(self):
         self.rpc = None
         self.connected = False
-
+        self._updating = False  # flag to prevent concurrent updates
         # One persistent background thread with one event loop.
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(
@@ -56,6 +56,9 @@ class DiscordRPC:
 
     async def _update(self, title, artist, thumbnail_url, duration=None, position=0, paused=False):
         try:
+            if self._updating:
+                return
+            self._updating = True
             large_image = thumbnail_url if thumbnail_url else "raagax_logo"
 
             now = int(time.time())
@@ -79,6 +82,8 @@ class DiscordRPC:
         except Exception as e:
             logger.warning(f"[RPC] Failed to update presence: {traceback.format_exc()}")
             self.connected = False
+        finally:
+            self._updating = False  # release even on error
         
     async def _clear(self) -> None:
         try:

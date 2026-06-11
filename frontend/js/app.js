@@ -651,26 +651,33 @@ function escHtml(str) {
 /* ================================================================
    DISCORD RPC
    ================================================================ */
+let rpcUpdateTimer = null;
+
 function rpcUpdate(paused = false) {
-  const song = queue[currentIndex];
-  if (!song) return;
+    const song = queue[currentIndex];
+    if (!song) return;
 
-  const media   = getMedia();
-  const duration = Math.floor(media.duration || 0);
-  const position = Math.floor(media.currentTime || 0);
+    // Debounce — wait 500ms after last call before actually sending
+    // prevents flooding during seek drag or rapid play/pause
+    clearTimeout(rpcUpdateTimer);
+    rpcUpdateTimer = setTimeout(() => {
+        const media    = getMedia();
+        const duration = Math.floor(media.duration || 0);
+        const position = Math.floor(media.currentTime || 0);
 
-  fetch(`${API_BASE}/rpc/update`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      title:         song.title     || 'Unknown',
-      artist:        null,           // RaagaX doesn't have artist metadata currently
-      thumbnail_url: song.thumbnail || null,
-      duration:      duration,
-      position:      position,
-      paused:        paused
-    })
-  }).catch(() => {}); // fire and forget never block playback on error
+        fetch(`${API_BASE}/rpc/update`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title:         song.title     || 'Unknown',
+                artist:        null,
+                thumbnail_url: song.thumbnail || null,
+                duration:      duration,
+                position:      position,
+                paused:        paused
+            })
+        }).catch(() => {});
+    }, 500); // 500ms debounce
 }
 
 function rpcClear() {
