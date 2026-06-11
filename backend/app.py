@@ -117,3 +117,12 @@ async def rpc_update(request: Request):
     except Exception as e:
         logger.error(f"[RPC] /rpc/update error: {traceback.format_exc()}")
         return JSONResponse(content={"error": "Failed to update RPC"}, status_code=500)
+    
+@app.post("/rpc/clear", response_class=JSONResponse)
+async def rpc_clear(request: Request):
+    try:
+        rpc.clear()
+        return JSONResponse({"success": True})
+    except Exception as e:
+        logger.error(f"[RPC] /rpc/clear error: {traceback.format_exc()}")
+        return JSONResponse(content={"error": "Failed to clear RPC"}, status_code=500)
