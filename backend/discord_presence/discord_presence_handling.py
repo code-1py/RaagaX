@@ -22,7 +22,7 @@ class DiscordRPC:
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(
             target=self._loop.run_forever,
-            daemon=True,
+            daemon=True, # Daemon thread will exit when main program exits
             name="DiscordRPC-Loop"
         )
         self._thread.start()
@@ -52,3 +52,29 @@ class DiscordRPC:
                 await asyncio.sleep(2)  # wait 2s before retry
         logger.warning("[RPC] Could not connect after 3 attempts")
         self.connected = False
+
+    async def _update(self, title, artist, thumbnail_url, duration=None, position=0, paused=False):
+        try:
+            large_image = thumbnail_url if thumbnail_url else "raagax_logo"
+
+            now = int(time.time())
+            start = now - position if (duration and not paused) else None
+            end   = start + duration if (duration and not paused) else None     
+
+            await self.rpc.update(
+                activity_type=ActivityType.LISTENING,
+                details=title[:128] if title else "Playing",
+                state=f"by {artist[:128]}" if artist else None,
+                large_image=large_image,
+                large_text=title or "RaagaX",
+                small_image="raagax_logo",
+                small_text="RaagaX",
+                start=start,
+                end=end,
+            )
+            logger.info(f"[RPC] Updated: {title}")
+        except Exception as e:
+            logger.warning(f"[RPC] Failed to update presence: {traceback.format_exc()}")
+            self.connected = False
+        
+    
