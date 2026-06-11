@@ -93,11 +93,20 @@ class DiscordRPC:
         self._loop.call_soon_threadsafe(self._loop.stop)
         logger.info("[RPC] Disconnected")
 
-    def update(self, title: str, artist: str = None, thumbnail_url: str = None) -> None:
+    def update(
+        self,
+        title: str,
+        artist: str = None,
+        thumbnail_url: str = None,
+        duration: int = None,
+        position: int = 0,
+        paused: bool = False,
+    ) -> None:
+        
         if not self.connected:
             return
         asyncio.run_coroutine_threadsafe(
-            self._update(title, artist, thumbnail_url),
+            self._update(title, artist, thumbnail_url, duration, position, paused),
             self._loop
         )
 
