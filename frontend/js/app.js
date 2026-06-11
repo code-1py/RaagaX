@@ -280,9 +280,10 @@ function clearPlayer() {
   seekThumb.style.left    = '0%';
   timeCurrent.textContent = '0:00';
   timeTotal.textContent   = '0:00';
+  rpcClear();
 }
 
-function playSong(idx) {
+function  playSong(idx) {
   if (idx < 0 || idx >= queue.length) {
     // Nothing left — clear everything
     currentIndex = -1;
@@ -318,13 +319,17 @@ function playSong(idx) {
       showStage('audio');
     }
     media.play()
-      .then(() => setPlayingState(true))
+      .then(() => {
+        setPlayingState(true);
+        rpcUpdate();
+      })
       .catch(() => setPlayingState(false));
     updateQueueActive();
   };
 
   // CDN URL failed — skip to next or clear if nothing left
   media.onerror = () => {
+    rpcClear()
     showToast(`Couldn't load "${song.title}" — skipping`, 'error');
     if (queue.length > 1) {
       // Remove broken song from queue
@@ -371,8 +376,15 @@ function setPlayingState(playing) {
 function togglePlayPause() {
   const media = getMedia();
   if (!media.src) return;
-  if (isPlaying) { media.pause(); setPlayingState(false); }
-  else { media.play().then(() => setPlayingState(true)); }
+  if (isPlaying) { 
+    media.pause(); 
+    setPlayingState(false); 
+    rpcUpdate(true);  
+  }
+  else { media.play().then(() => {
+    setPlayingState(true);
+    rpcUpdate();  
+  });}
 }
 
 function nextSong() {
@@ -435,6 +447,7 @@ function seek(e) {
   media.currentTime    = pct * media.duration;
   seekFill.style.width = (pct * 100) + '%';
   seekThumb.style.left  = (pct * 100) + '%';
+  if (isPlaying) rpcUpdate();
 }
 
 /* ================================================================
