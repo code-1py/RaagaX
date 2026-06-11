@@ -6,13 +6,22 @@ from backend.settings import get_user_customization, set_update_user_customizati
 import traceback
 from backend.utils import BASE_DIR
 from backend.media import get_playlist_info, get_songs_info
+from contextlib import asynccontextmanager
+from backend.discord_presence import rpc
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    rpc.connect()    # Connect to Discord RPC when the application starts
+    yield            
+    rpc.disconnect() # Disconnect from Discord RPC when the application shuts down
+
+app = FastAPI(lifespan=lifespan)
 
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 app.mount("/css",StaticFiles(directory=str(FRONTEND_DIR / "css")),name="css") # CSS Files Mount
 app.mount("/js",StaticFiles(directory=str(FRONTEND_DIR / "js")),name="js") # JS Files Mount
+
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
