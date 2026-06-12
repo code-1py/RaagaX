@@ -69,12 +69,8 @@ function loadQueueFromStorage() {
         media.preload = 'metadata';
 
         media.onloadedmetadata = () => {
-          if (song.has_video) {
-            showStage('video');
-          } else {
-            audioThumb.src = song.thumbnail || '';
-            showStage('audio');
-          }
+          audioThumb.src = song.thumbnail || '';
+          showStage('audio');
           // Don't play — just ready for user to hit play
           media.onloadedmetadata = null;
         };
@@ -312,12 +308,9 @@ function  playSong(idx) {
   media.muted  = isMuted;
 
   media.onloadedmetadata = () => {
-    if (song.has_video) {
-      showStage('video');
-    } else {
-      audioThumb.src = song.thumbnail || '';
-      showStage('audio');
-    }
+    audioThumb.src = song.thumbnail || '';
+    showStage('audio');
+
     media.play()
       .then(() => {
         setPlayingState(true);
@@ -509,12 +502,8 @@ function renderQueue() {
     li.dataset.idx = idx;
 
     const thumb = song.thumbnail
-      ? `<img class="queue-thumb" src="${escHtml(song.thumbnail)}" alt="" loading="lazy" onerror="this.style.display='none'" />`
+      ? `<img class="queue-thumb" src="${escHtml(song.thumbnail)}" alt="" loading="lazy" />`
       : `<div class="queue-thumb-placeholder">♫</div>`;
-
-    const badge = song.has_video
-      ? `<span class="queue-badge badge-video">VID</span>`
-      : `<span class="queue-badge badge-audio">AUD</span>`;
 
     li.innerHTML = `
       <span class="drag-handle" title="Drag to reorder">⠿</span>
@@ -522,7 +511,6 @@ function renderQueue() {
       <div class="queue-meta">
         <div class="queue-title">${escHtml(song.title)}</div>
       </div>
-      ${badge}
       <span class="now-playing-dot"></span>
       <button class="queue-remove" title="Remove" onclick="removeSong(event,${idx})">✕</button>
     `;

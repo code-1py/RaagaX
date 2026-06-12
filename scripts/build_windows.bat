@@ -14,9 +14,6 @@ if exist dist rmdir /s /q dist
 echo [RaagaX] Building with PyInstaller...
 pyinstaller RaagaX.spec
 
-echo [RaagaX] Copying frontend files...
-xcopy /e /i /y frontend dist\RaagaX\frontend
-
 echo [RaagaX] Done!
 echo Output: dist\RaagaX\RaagaX.exe
 pause

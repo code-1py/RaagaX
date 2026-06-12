@@ -70,6 +70,14 @@ hidden_imports = [
     "backend.media",
     "backend.settings",
     "backend.utils",
+    # pywebview GTK backend (Linux)
+    "webview.platforms.gtk",
+    "gi",
+    "gi.repository",
+    "gi.repository.Gtk",
+    "gi.repository.Gdk",
+    "gi.repository.GLib",
+    "gi.repository.WebKit2",
     # pythonnet for pywebview on Windows
     "clr",
     "pythonnet",
@@ -98,11 +106,13 @@ a = Analysis(
     ["main.py"],
     pathex=["."],
     binaries=[],
-    datas=yt_dlp_datas + webview_datas,
+    datas=yt_dlp_datas + webview_datas + [
+    ("frontend", "frontend"),
+    ],
     hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=["hook_gi_linux.py"] if IS_LINUX else [],
     excludes=[
         "tkinter",
         "matplotlib",

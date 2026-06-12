@@ -1,12 +1,16 @@
 # ◈ RaagaX
 
-A modern, self-contained music and video player built as a desktop application. Paste any link or search by name — RaagaX fetches and plays it instantly, no downloads, no accounts.
+A modern, self-contained music player built as a desktop application. Paste any link or search by name — RaagaX fetches and plays it instantly, no downloads, no accounts.
+
+> **v1.1.0:** All tracks now display as audio with thumbnail art. Discord Rich Presence added. Frontend is bundled inside the application binary.
 
 ---
 
 ## Features
 
-- Play music and video from links or search by name
+- Play music from links or search by name
+- Thumbnail art display for all tracks
+- Discord Rich Presence — shows track title, art, and live progress on your profile
 - Queue management with drag and drop reordering
 - Playlist support — paste a playlist link and all tracks load automatically
 - Seek bar, volume control, loop, skip, and keyboard shortcuts
@@ -68,7 +72,7 @@ python main.py
 
 ## Build the Application
 
-Build produces a standalone folder at `dist\RaagaX\` that runs without Python installed.
+Build produces a standalone folder at `dist\RaagaX\` that runs without Python installed. The frontend (HTML, CSS, JS) is bundled inside the binary — no separate folder is needed.
 
 ### Windows
 
@@ -136,7 +140,7 @@ RaagaX/
 │   ├── media/           # Media fetching
 │   ├── settings/        # User preferences
 │   └── utils/           # Shared utilities
-└── frontend/
+└── frontend/            # Bundled into binary at build time
     ├── index.html
     ├── css/
     └── js/
@@ -150,6 +154,17 @@ RaagaX/
 - Delayed/progressive loading for large playlists
 - Large playlist handling with smart queuing
 - macOS support
+
+---
+
+## Discord Rich Presence
+
+RaagaX shows what you're listening to on your Discord profile in real time.
+
+- Displays track title, thumbnail art, and a live progress timer
+- Presence clears automatically when playback stops or the app closes
+- Requires Discord to be running — if it isn't, RaagaX continues playing normally and presence is silently skipped
+- No configuration needed, it works out of the box
 
 ---
 

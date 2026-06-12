@@ -100,9 +100,6 @@ rm -rf build dist
 echo "[RaagaX] Building with PyInstaller..."
 pyinstaller RaagaX.spec
 
-echo "[RaagaX] Copying frontend files..."
-cp -r frontend dist/RaagaX/frontend
-
 echo "[RaagaX] Setting executable permission..."
 chmod +x dist/RaagaX/RaagaX
 

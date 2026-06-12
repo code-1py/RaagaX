@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse , RedirectResponse , JSONResponse , F
 from fastapi.staticfiles import StaticFiles
 from backend.settings import get_user_customization, set_update_user_customization
 import traceback
-from backend.utils import BASE_DIR
+from backend.utils import BUNDLE_DIR
 from backend.media import get_playlist_info, get_songs_info
 from contextlib import asynccontextmanager
 from backend.discord_presence import rpc
@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-FRONTEND_DIR = BASE_DIR / "frontend"
+FRONTEND_DIR = BUNDLE_DIR / "frontend"
 
 app.mount("/css",StaticFiles(directory=str(FRONTEND_DIR / "css")),name="css") # CSS Files Mount
 app.mount("/js",StaticFiles(directory=str(FRONTEND_DIR / "js")),name="js") # JS Files Mount
