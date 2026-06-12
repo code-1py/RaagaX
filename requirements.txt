@@ -3,3 +3,5 @@ uvicorn[standard]
 yt-dlp
 pywebview
 pyinstaller
+pypresence
+aiohttp

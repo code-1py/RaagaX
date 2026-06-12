@@ -82,6 +82,12 @@ hidden_imports = [
     "httptools",
     "email.mime.text",
     "email.mime.multipart",
+    # discord rpc
+    "pypresence",
+    "aiohttp",
+    "aiohttp.connector",
+    "aiohttp.client",
+    "backend.discord_presence",
 ] + yt_dlp_hiddens + webview_hiddens
 
 # ============================================================
