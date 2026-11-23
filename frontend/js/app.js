@@ -2,7 +2,7 @@
    RaagaX — app.js
    ============================================================ */
 
-const API_BASE = ''; // set to 'http://IP:PORT' or 'https://URL' if backend is separate in future
+const WS_URL = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`;
 
 /* ---- State ---- */
 let queue        = [];   // array of song objects
@@ -13,6 +13,92 @@ let isMuted      = false;
 let isDraggingSeek = false;
 let dragSrcIdx   = null;
 let currentTheme = 'light';
+let socket = null;
+let reconnectTimer = null;
+let reconnectDelay = 1000;
+let nextRequestId = 1;
+const pendingRequests = new Map();
+const socketWaiters = [];
+
+function connectWebSocket() {
+  if (socket && socket.readyState <= WebSocket.OPEN) return;
+
+  const connection = new WebSocket(WS_URL);
+  socket = connection;
+
+  connection.onopen = () => {
+    reconnectDelay = 1000;
+    document.getElementById('server-banner').classList.add('hidden');
+    while (socketWaiters.length) socketWaiters.shift()(connection);
+  };
+
+  connection.onmessage = event => {
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch {
+      showServerBanner();
+      return;
+    }
+
+    const request = pendingRequests.get(message.id);
+    if (!request) return;
+    try {
+      if (message.type === 'song' || message.type === 'song_error') {
+        request.onMessage?.(message);
+      } else if (message.type === 'error') {
+        pendingRequests.delete(message.id);
+        request.reject(new Error(message.error || 'Request failed'));
+      } else if (message.type === 'result' || message.type === 'complete') {
+        pendingRequests.delete(message.id);
+        request.resolve(message);
+      }
+    } catch (error) {
+      pendingRequests.delete(message.id);
+      request.reject(error);
+    }
+  };
+
+  connection.onclose = () => {
+    if (socket !== connection) return;
+    socket = null;
+    for (const [id, request] of pendingRequests) {
+      pendingRequests.delete(id);
+      request.reject(new Error('WebSocket connection lost'));
+    }
+    showServerBanner();
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connectWebSocket, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, 10000);
+  };
+
+  connection.onerror = () => connection.close();
+}
+
+function waitForWebSocket() {
+  if (socket?.readyState === WebSocket.OPEN) return Promise.resolve(socket);
+  connectWebSocket();
+  return new Promise(resolve => socketWaiters.push(resolve));
+}
+
+async function sendWsRequest(action, data = {}, onMessage = null) {
+  const connection = await waitForWebSocket();
+  const id = String(nextRequestId++);
+  return new Promise((resolve, reject) => {
+    pendingRequests.set(id, { resolve, reject, onMessage });
+    if (connection.readyState !== WebSocket.OPEN) {
+      pendingRequests.delete(id);
+      reject(new Error('WebSocket connection lost'));
+      return;
+    }
+    try {
+      connection.send(JSON.stringify({ id, action, data }));
+    } catch (error) {
+      pendingRequests.delete(id);
+      reject(error);
+    }
+  });
+}
 
 /* ---- DOM refs ---- */
 const videoEl       = document.getElementById('video-player');
@@ -99,18 +185,11 @@ async function init() {
   // 1. Restore queue from last session
   loadQueueFromStorage();
 
-  // 2. Fetch theme preference — also tells us if server is alive
+  // 2. Fetch the saved theme over the persistent connection.
   try {
-    const res = await fetch(`${API_BASE}/user_customization`);
-    if (res.ok) {
-      const data = await res.json();
-      applyTheme(data.display_mode || 'light', false);
-    } else {
-      applyTheme('light', false);
-      showServerBanner();
-    }
+    const data = await sendWsRequest('theme_get');
+    applyTheme(data.display_mode || 'light', false);
   } catch {
-    // Network failure — server is not reachable at all
     applyTheme('light', false);
     showServerBanner();
   }
@@ -135,14 +214,8 @@ function toggleTheme() {
   applyTheme(currentTheme === 'light' ? 'dark' : 'light');
 }
 
-async function saveTheme(mode) {
-  try {
-    await fetch(`${API_BASE}/user_customization_update`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ display_mode: mode })
-    });
-  } catch { /* fire-and-forget */ }
+function saveTheme(mode) {
+  sendWsRequest('theme_set', { display_mode: mode }).catch(showServerBanner);
 }
 
 /* ================================================================
@@ -164,7 +237,7 @@ function normaliseSong(raw) {
 }
 
 /* ================================================================
-   ADD SONG — handles single and playlist (multiple_song: true)
+   ADD SONG — accepts individual song messages from the WebSocket
    ================================================================ */
 async function addSong() {
   const link = linkInput.value.trim();
@@ -174,58 +247,34 @@ async function addSong() {
   addBtn.textContent = '…';
 
   try {
-    const res = await fetch(`${API_BASE}/get-song`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ link })
-    });
-
-    if (!res.ok) {
-      let serverMsg = '';
-      try { const b = await res.json(); serverMsg = b.message || b.error || ''; } catch {}
-      handleHttpError(res.status, serverMsg);
-      return;
-    }
-
-    const data = await res.json();
-
-    // ---- Playlist / multiple songs ----
-    if (data.multiple_song === true) {
-      const songs = Array.isArray(data.song) ? data.song : Object.values(data.song);
-      const valid  = songs.map(normaliseSong).filter(s => s.url);
-
-      if (valid.length === 0) {
-        showToast('Playlist returned no playable tracks', 'error');
+    let added = 0;
+    let failed = 0;
+    const wasEmpty = queue.length === 0;
+    await sendWsRequest('get_song', { link }, message => {
+      if (message.type === 'song_error') {
+        failed++;
+        showToast(message.error, 'error');
         return;
       }
 
-      const wasEmpty = queue.length === 0;
-      queue.push(...valid);
-      linkInput.value = '';
-      renderQueue();
-      saveQueueToStorage();
-      showToast(`Added ${valid.length} track${valid.length > 1 ? 's' : ''} from playlist`, 'success');
-      if (wasEmpty) playSong(0);
-
-    // ---- Single song ----
-    } else {
-      const song = normaliseSong(data.song || data);
+      const song = normaliseSong(message.song);
       if (!song.url) {
-        showToast('Server returned no playable URL', 'error');
-        return;
+        throw new Error('Server returned no playable URL');
       }
-      const wasEmpty = queue.length === 0;
+      if (added === 0) linkInput.value = '';
       queue.push(song);
-      linkInput.value = '';
+      added++;
       renderQueue();
       saveQueueToStorage();
-      showToast(`Added: ${song.title}`, 'success');
-      if (wasEmpty) playSong(queue.length - 1);
+      if (wasEmpty && added === 1) playSong(0);
+    });
+    if (added === 0) {
+      if (failed === 0) showToast('No playable tracks found', 'error');
+    } else if (failed === 0) {
+      showToast(`Added ${added} track${added !== 1 ? 's' : ''}`, 'success');
     }
-
-  } catch {
-    showServerBanner();
-    showToast('Server not available — check your connection', 'error');
+  } catch (error) {
+    showToast(error.message || 'Could not fetch tracks — check your connection and try again', 'error');
   } finally {
     addBtn.disabled = false;
     addBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add`;
@@ -233,30 +282,6 @@ async function addSong() {
 }
 
 linkInput.addEventListener('keydown', e => { if (e.key === 'Enter') addSong(); });
-
-/* ================================================================
-   HTTP ERROR HANDLING
-   ================================================================ */
-function handleHttpError(status, serverMsg) {
-  const msg = serverMsg || fallbackMessage(status);
-  if (status >= 500 || status === 0) showServerBanner();
-  showToast(msg, 'error');
-}
-
-function fallbackMessage(status) {
-  if (status === 400) return 'Invalid link — double-check and try again';
-  if (status === 401) return 'Not authorised to fetch this track';
-  if (status === 403) return 'Access denied by the server';
-  if (status === 404) return 'Track not found — it may have been removed';
-  if (status === 408) return 'Request timed out — try again';
-  if (status === 422) return 'Could not process this link';
-  if (status === 429) return 'Too many requests — please wait a moment';
-  if (status === 500) return 'Server ran into an unexpected error';
-  if (status === 502) return 'Server is unreachable right now';
-  if (status === 503) return 'Service is temporarily unavailable';
-  if (status === 504) return 'Server took too long to respond';
-  return 'Something unexpected happened — please try again';
-}
 
 /* ================================================================
    PLAYER
@@ -653,21 +678,17 @@ function rpcUpdate(paused = false) {
         const duration = Math.floor(media.duration || 0);
         const position = Math.floor(media.currentTime || 0);
 
-        fetch(`${API_BASE}/rpc/update`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+        sendWsRequest('rpc_update', {
                 title:         song.title     || 'Unknown',
                 artist:        null,
                 thumbnail_url: song.thumbnail || null,
                 duration:      duration,
                 position:      position,
                 paused:        paused
-            })
         }).catch(() => {});
     }, 500); // 500ms debounce
 }
 
 function rpcClear() {
-  fetch(`${API_BASE}/rpc/clear`, { method: 'POST' }).catch(() => {});
+  sendWsRequest('rpc_clear').catch(() => {});
 }

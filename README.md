@@ -12,7 +12,8 @@ A modern, self-contained music player built as a desktop application. Paste any 
 - Thumbnail art display for all tracks
 - Discord Rich Presence — shows track title, art, and live progress on your profile
 - Queue management with drag and drop reordering
-- Playlist support — paste a playlist link and all tracks load automatically
+- Playlist support — tracks stream into the queue one at a time with no fixed playlist-size limit
+- Persistent WebSocket connection for track lookup, settings, and Discord Rich Presence updates
 - Seek bar, volume control, loop, skip, and keyboard shortcuts
 - Light and dark theme, saved automatically
 
@@ -150,9 +151,6 @@ RaagaX/
 
 ## Roadmap
 
-- WebSocket support for real-time playback sync
-- Delayed/progressive loading for large playlists
-- Large playlist handling with smart queuing
 - macOS support
 
 ---

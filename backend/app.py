@@ -1,128 +1,144 @@
-from backend.logger import logger
-from fastapi import FastAPI, Request  , HTTPException
-from fastapi.responses import HTMLResponse , RedirectResponse , JSONResponse , FileResponse
-from fastapi.staticfiles import StaticFiles
-from backend.settings import get_user_customization, set_update_user_customization
+import asyncio
 import traceback
-from backend.utils import BUNDLE_DIR
-from backend.media import get_playlist_info, get_songs_info
 from contextlib import asynccontextmanager
+
 from backend.discord_presence import rpc
+from backend.logger import logger
+from backend.media import iter_songs_info
+from backend.media.yt_dlp_service import SongInfoError, SongInfoFailure
+from backend.settings import get_user_customization, set_update_user_customization
+from backend.utils import BUNDLE_DIR
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import iterate_in_threadpool
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    rpc.connect()    # Connect to Discord RPC when the application starts
-    yield            
-    rpc.disconnect() # Disconnect from Discord RPC when the application shuts down
+    rpc.connect()
+    yield
+    rpc.disconnect()
+
 
 app = FastAPI(lifespan=lifespan)
 
 FRONTEND_DIR = BUNDLE_DIR / "frontend"
 
-app.mount("/css",StaticFiles(directory=str(FRONTEND_DIR / "css")),name="css") # CSS Files Mount
-app.mount("/js",StaticFiles(directory=str(FRONTEND_DIR / "js")),name="js") # JS Files Mount
+app.mount("/css", StaticFiles(directory=str(FRONTEND_DIR / "css")), name="css")
+app.mount("/js", StaticFiles(directory=str(FRONTEND_DIR / "js")), name="js")
 
 
-# main route to serve the frontend
-
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+@app.get("/")
+async def index():
     return FileResponse(FRONTEND_DIR / "index.html")
 
-@app.get("/user_customization", response_class=JSONResponse)
-async def user_customization(request: Request):
-    try:
-        customization = get_user_customization()
-        return JSONResponse({"display_mode": customization})
-    except Exception as e:
-        logger.error(f"Error fetching user customization: {traceback.format_exc()}")
-        return JSONResponse(content={"error": "Failed to fetch user customization"}, status_code=500)
-    
-@app.post("/user_customization_update",response_class=JSONResponse)
-async def user_customization_update(request:Request):
-    try:
-        data = await request.json()
-        theme = data.get("display_mode")
-        if theme not in ["light", "dark"]:
-            return JSONResponse(content={"error": "Invalid theme value"}, status_code=400)
-        set_update_user_customization(theme)
-        return JSONResponse({"success": True})
-    
-    except Exception as e:
-        logger.error(f"Error updating user customization: {traceback.format_exc()}")
-        return JSONResponse(content={"error": "Failed to update user customization"}, status_code=500)
-    
-@app.post("/get-song", response_class=JSONResponse)
-async def get_song(request: Request):
-    try:
-        data: dict = await request.json()
-        link = data.get("link")
-        if not link:
-            return JSONResponse(content={"error": "Missing 'link' parameter"}, status_code=400)
 
-        playlist_info:dict = get_playlist_info(link)
-        if playlist_info.get("is_playlist"):
-            song_count = playlist_info.get("count", 0)
-            if song_count > 50:
-                return JSONResponse(content={"error": "Playlist too large. Maximum allowed is 50 songs."}, status_code=400)
-        
-        success , songs_info = get_songs_info(link)
-        if not success:
-            return JSONResponse(content={"error": songs_info}, status_code=400)
-        
-        if len(songs_info) == 0:
-            return JSONResponse(content={"error": "No songs found at the provided link"}, status_code=404)
-        
-        response = {
-            "multiple_song": playlist_info.get("is_playlist", False),
-            "song": songs_info
-        }
-        if songs_info and len(songs_info) == 1:
-            response["song"] = songs_info[0]  # Return single song as an object instead of a list
-            
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    send_lock = asyncio.Lock()
+    tasks: set[asyncio.Task] = set()
 
-        return JSONResponse(content=response)
+    async def send(message: dict) -> None:
+        async with send_lock:
+            await websocket.send_json(message)
 
-    except Exception as e:
-        logger.error(f"Error fetching song: {traceback.format_exc()}")
-        traceback.print_exc()
-        return JSONResponse(content={"error": "Failed to fetch song"}, status_code=500)
-    
+    async def handle_request(message: dict) -> None:
+        request_id = message.get("id")
+        action = message.get("action")
+        data = message.get("data") or {}
 
-# Discord RPC Handling routes
+        try:
+            if not isinstance(data, dict):
+                await send({"id": request_id, "type": "error", "error": "Invalid request data"})
+                return
 
-@app.post("/rpc/update", response_class=JSONResponse)
-async def rpc_update(request: Request):
+            if action == "theme_get":
+                await send({
+                    "id": request_id,
+                    "type": "result",
+                    "display_mode": get_user_customization(),
+                })
+            elif action == "theme_set":
+                theme = data.get("display_mode")
+                if theme not in ("light", "dark"):
+                    await send({"id": request_id, "type": "error", "error": "Invalid theme value"})
+                    return
+                set_update_user_customization(theme)
+                await send({"id": request_id, "type": "result", "success": True})
+            elif action == "get_song":
+                link = data.get("link")
+                if not isinstance(link, str) or not link.strip():
+                    await send({"id": request_id, "type": "error", "error": "Missing 'link' parameter"})
+                    return
+
+                count = 0
+                failed_count = 0
+                async for item in iterate_in_threadpool(iter_songs_info(link.strip())):
+                    if isinstance(item, SongInfoFailure):
+                        failed_count += 1
+                        await send({
+                            "id": request_id,
+                            "type": "song_error",
+                            "error": f'Failed to fetch "{item.title}": {item.message}. Skipping track.',
+                        })
+                        continue
+                    count += 1
+                    await send({"id": request_id, "type": "song", "song": item})
+
+                if count == 0 and failed_count == 0:
+                    await send({"id": request_id, "type": "error", "error": "No songs found at the provided link"})
+                    return
+                await send({
+                    "id": request_id,
+                    "type": "complete",
+                    "count": count,
+                    "failed_count": failed_count,
+                })
+            elif action == "rpc_update":
+                title = data.get("title")
+                if not title:
+                    await send({"id": request_id, "type": "error", "error": "Missing 'title'"})
+                    return
+                rpc.update(
+                    title=title,
+                    artist=data.get("artist"),
+                    thumbnail_url=data.get("thumbnail_url"),
+                    duration=data.get("duration"),
+                    position=data.get("position", 0),
+                    paused=data.get("paused", False),
+                )
+                await send({"id": request_id, "type": "result", "success": True})
+            elif action == "rpc_clear":
+                rpc.clear()
+                await send({"id": request_id, "type": "result", "success": True})
+            else:
+                await send({"id": request_id, "type": "error", "error": "Unknown action"})
+        except SongInfoError as e:
+            await send({"id": request_id, "type": "error", "error": str(e)})
+        except Exception:
+            logger.error(f"WebSocket request failed: {traceback.format_exc()}")
+            await send({"id": request_id, "type": "error", "error": "Request failed"})
+
+    def request_finished(task: asyncio.Task) -> None:
+        tasks.discard(task)
+        if not task.cancelled() and task.exception() is not None:
+            logger.error(f"WebSocket response failed: {task.exception()}")
+
     try:
-        data = await request.json()
-        title = data.get("title")
-        artist = data.get("artist")
-        thumbnail_url = data.get("thumbnail_url")
-        duration = data.get("duration")
-        position = data.get("position", 0)
-        paused = data.get("paused", False)
- 
-        if not title:
-            return JSONResponse(content={"error": "Missing 'title'"}, status_code=400)
- 
-        rpc.update(
-            title=title,
-            artist=artist,
-            thumbnail_url=thumbnail_url,
-            duration=duration,
-            position=position,
-            paused=paused,
-        )
-        return JSONResponse({"success": True})
-    except Exception as e:
-        logger.error(f"[RPC] /rpc/update error: {traceback.format_exc()}")
-        return JSONResponse(content={"error": "Failed to update RPC"}, status_code=500)
-    
-@app.post("/rpc/clear", response_class=JSONResponse)
-async def rpc_clear(request: Request):
-    try:
-        rpc.clear()
-        return JSONResponse({"success": True})
-    except Exception as e:
-        logger.error(f"[RPC] /rpc/clear error: {traceback.format_exc()}")
-        return JSONResponse(content={"error": "Failed to clear RPC"}, status_code=500)
+        while True:
+            message = await websocket.receive_json()
+            if not isinstance(message, dict):
+                await send({"type": "error", "error": "Invalid request"})
+                continue
+            task = asyncio.create_task(handle_request(message))
+            tasks.add(task)
+            task.add_done_callback(request_finished)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
