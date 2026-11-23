@@ -30,6 +30,14 @@ yt_dlp_hiddens  = collect_submodules("yt_dlp")
 webview_datas   = collect_data_files("webview")
 webview_hiddens = collect_submodules("webview")
 
+# Python.NET loads this managed assembly at runtime through clr_loader. Keep it
+# as a loose file at pythonnet/runtime so the loader resolves the same assembly
+# as the installed Python.NET package.
+pythonnet_datas = collect_data_files(
+    "pythonnet",
+    includes=["runtime/Python.Runtime.dll"],
+)
+
 # ============================================================
 #  Frontend files — copied NEXT TO exe, not inside _MEIPASS
 #  We handle this via COLLECT below, not datas
@@ -106,7 +114,7 @@ a = Analysis(
     ["main.py"],
     pathex=["."],
     binaries=[],
-    datas=yt_dlp_datas + webview_datas + [
+    datas=yt_dlp_datas + webview_datas + pythonnet_datas + [
     ("frontend", "frontend"),
     ],
     hiddenimports=hidden_imports,
@@ -169,7 +177,8 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=[],
+    # UPX can interfere with loading managed .NET assemblies.
+    upx_exclude=["Python.Runtime.dll"],
     name="RaagaX",              # output folder name: dist/RaagaX/
 )
 

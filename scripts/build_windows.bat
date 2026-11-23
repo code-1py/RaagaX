@@ -5,7 +5,7 @@ REM  Run from project root: build\build_windows.bat
 REM ============================================================
 
 echo [RaagaX] Installing dependencies...
-pip install -r requirements.txt
+python -m pip install --upgrade -r requirements.txt
 
 echo [RaagaX] Cleaning previous build...
 if exist build rmdir /s /q build
